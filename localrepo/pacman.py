@@ -1,7 +1,7 @@
 # pacman.py
-# vim:ts=8:sw=8:noexpandtab
+# vim:ts=4:sw=4:noexpandtab
 
-from os import chdir
+from os import chdir, getuid
 from os.path import exists, isdir
 from subprocess import call, check_output, CalledProcessError
 
@@ -38,10 +38,11 @@ class Pacman:
 		if asdeps:
 			cmd += ['--asdeps']
 
-		if exists(Pacman.SUDO):
-			cmd.insert(0, 'sudo')
-		else:
-			cmd = ['su', '-c', '\''] + cmd + ['\'']
+		if getuid() is not 0:
+			if exists(Pacman.SUDO):
+				cmd.insert(0, 'sudo')
+			else:
+				cmd = ['su', '-c', '\''] + cmd + ['\'']
 
 		Pacman.call(cmd)
 
@@ -59,19 +60,17 @@ class Pacman:
 			if e.returncode is 127:
 				return [p for p in e.output.decode('utf8').split('\n') if p]
 			else:
-				raise PacmanError('pacman')
+				raise PacmanError('pacman -T')
 
 		return []
 
 	@staticmethod
-	def make_package(path=None):
+	def make_package(path):
 		''' Calls makepkg '''
-		if path is not None:
-			if not isdir(path):
-				raise IOError(_('Could not find directory: {0}').format(path))
+		if not isdir(path):
+			raise IOError(_('Could not find directory: {0}').format(path))
 
-			chdir(path)
-
+		chdir(path)
 		Pacman.call(['makepkg', '-d'])
 
 	@staticmethod
@@ -83,3 +82,9 @@ class Pacman:
 	def repo_remove(db, pkgs):
 		''' Calls repo-remove '''
 		Pacman.call(['repo-remove', db] + pkgs)
+
+	@staticmethod
+	def repo_elephant():
+		''' The elephant never forgets '''
+		if call(['repo-elephant']) is not 0:
+			raise Exception(_('Ooh no! Somebody killed the repo elephant'))

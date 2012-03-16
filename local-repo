@@ -1,10 +1,14 @@
 #!/usr/bin/env python3.2
-# vim:ts=8:sw=8:noexpandtab
+# vim:ts=4:sw=4:noexpandtab
 
 import sys
+
+# Load localrepo before argparse, because of localization stuff!
+from localrepo.localrepo import LocalRepo
+from localrepo.msg import Msg
+
 from argparse import ArgumentParser
 
-from localrepo.localrepo import LocalRepo
 
 # Handle KeyboardInterrupt
 excepthook = sys.excepthook
@@ -22,7 +26,7 @@ p = ArgumentParser(description=_('This program helps to manage local repositorie
                                  'the path to the repository with the first argument. If no '
                                  'option is specified, some repo information will be printed.'),
                    usage=_('%(prog)s path [options]'),
-				   epilog=_('Please report bugs at: <{0}>').format('https://github.com/ushis/local-repo/issues'))
+                   epilog=_('Please report bugs at: <{0}>').format('https://github.com/ushis/local-repo/issues'))
 
 p.add_argument('path', type=str, metavar=_('path'), help=_('path to the repo'))
 
@@ -36,6 +40,9 @@ p.add_argument('-A', '--aur-add', action='store', dest='aur_add', type=str, meta
 
 p.add_argument('-c', '--check', action='store_true', dest='check', default=False,
                help=_('run an integrity check'))
+
+p.add_argument('-C', '--clear-cache', action='store_true', dest='clear_cache', default=False,
+               help=_('clear the cache'))
 
 p.add_argument('-e', '--elephant', action='store_true', dest='elephant', default=False,
                help=_('the elephant never forgets'))
@@ -62,20 +69,38 @@ p.add_argument('-u', '--upgrade', action='store', dest='upgrade', type=str, meta
 p.add_argument('-U', '--aur-upgrade', action='store_true', dest='aur_upgrade', default=False,
                help=_('upgrade all packages in the repo, which are available in the AUR'))
 
-p.add_argument('--vcs', action='store_true', dest='vcs_upgrade', default=False,
+p.add_argument('-V', '--vcs-upgrade', action='store_true', dest='vcs_upgrade', default=False,
                help=_('upgrade all packages in the repo, which are based on a VCS and available in the AUR'))
 
-args = p.parse_args()
+args = dict((opt, arg) for opt, arg in vars(p.parse_args()).items() if arg)
 
-# Load the repo
-r = LocalRepo(args.path)
-del(args.path)
+# Init the repo
+r = LocalRepo(args['path'])
+del(args['path'])
 
 # Print repo size if no option is specified
-args.size = True if not any([var[1] for var in vars(args).items()]) else False
+if len(args) is 0:
+	args['size'] = True
+
+# Run preload commands
+for method in (opt for opt in ['clear_cache', 'elephant', 'restore'] if opt in args):
+	if not getattr(r, method)():
+		LocalRepo.shutdown(True)
+	del(args[method])
+
+# Ready?
+if not args:
+	LocalRepo.shutdown(False)
+
+# Load
+try:
+	r.load()
+except Exception as e:
+	Msg.error(str(e))
+	LocalRepo.shutdown(True)
 
 # Run commands
-for method, arg in (opt for opt in vars(args).items() if opt[1]):
+for method, arg in args.items():
 	if not (getattr(r, method)() if type(arg) is bool else getattr(r, method)(arg)):
 		LocalRepo.shutdown(True)
 

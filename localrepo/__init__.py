@@ -1,15 +1,15 @@
-#!/usr/bin/env python3.2
-# vim:ts=8:sw=8:noexpandtab
+# __init__.py
+# vim:ts=4:sw=4:noexpandtab
 
-from os.path import abspath, dirname, exists, join, pardir
+from os.path import dirname, exists, join, pardir
 
 import builtins
 import gettext
 
-__all__ = ['aur', 'msg', 'package', 'repo']
+__all__ = ['aur', 'msg', 'package', 'pacman', 'parser', 'repo']
 
 def find_base():
-	d = join(abspath(dirname(__file__)), pardir)
+	d = dirname(dirname(__file__))
 
 	while not exists(join(d, 'local-repo')) and not exists(join(d, 'bin', 'local-repo')):
 		d = join(d, pardir)

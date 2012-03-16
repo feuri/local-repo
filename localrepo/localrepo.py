@@ -1,7 +1,5 @@
 # localrepo.py
-# vim:ts=8:sw=8:noexpandtab
-
-import re
+# vim:ts=4:sw=4:noexpandtab
 
 from localrepo.package import Package, DependencyError
 from localrepo.pacman import Pacman
@@ -11,6 +9,25 @@ from localrepo.msg import Msg
 
 class LocalRepo:
 	''' The main class for the local-repo programm '''
+
+	@staticmethod
+	def _install_deps(names):
+		''' Installs missing dependencies '''
+		Msg.info(_('Need following packages as dependencies: {0}').format(', '.join(names)))
+
+		if not Msg.yes(_('Install')):
+			if Msg.yes(_('Try without installing dependencies')):
+				return True
+
+			Msg.info(_('Bye'))
+			return False
+
+		try:
+			Pacman.install_as_deps(names)
+			return True
+		except Exception as e:
+			Msg.error(str(e))
+			return False
 
 	@staticmethod
 	def shutdown(error):
@@ -25,13 +42,27 @@ class LocalRepo:
 
 	def __init__(self, path):
 		''' The constructor needs the path to the repo database file '''
-		Msg.process(_('Loading repo database:'), path)
-
 		try:
 			self.repo = Repo(path)
 		except Exception as e:
 			Msg.error(str(e))
 			LocalRepo.shutdown(True)
+
+	def clear_cache(self):
+		''' Clears the repo cache '''
+		Msg.process(_('Clearing the cache'))
+
+		try:
+			self.repo.clear_cache()
+			return True
+		except Exception as e:
+			Msg.error(str(e))
+			return False
+
+	def load(self):
+		''' Loads the repo '''
+		Msg.process(_('Loading repo database: {0}').format(self.repo.path))
+		self.repo.load()
 
 	def size(self):
 		''' Prints the number of packages '''
@@ -52,7 +83,7 @@ class LocalRepo:
 	def info(self, names):
 		''' Print all available info of specified packages '''
 		for name in names:
-			if not self.repo.has_package(name):
+			if not self.repo.has(name):
 				Msg.error(_('Package does not exist:'), name)
 				return False
 
@@ -63,7 +94,7 @@ class LocalRepo:
 
 	def find(self, q):
 		''' Search the repo for packages '''
-		res = self.repo.find_packages(q)
+		res = self.repo.find(q)
 
 		if not res:
 			Msg.error(_('No package found'))
@@ -82,14 +113,11 @@ class LocalRepo:
 			try:
 				pkg = Package.forge(path)
 			except DependencyError as e:
-				Msg.info(_('Need following packages as makedepends: {0}').format(', '.join(e.deps)))
-
-				if not Msg.yes(_('Install')):
+				if not LocalRepo._install_deps(e.deps):
 					return False
 
 				try:
-					Pacman.install_as_deps(e.deps)
-					pkg = Package.forge(e.pkgbuild)
+					pkg = Package.from_pkgbuild(e.pkgbuild, True)
 				except Exception as e:
 					Msg.error(str(e))
 					return False
@@ -98,10 +126,9 @@ class LocalRepo:
 				return False
 
 			try:
-
 				if upgrade:
 					Msg.process(_('Upgrading package:'), pkg.name)
-					self.repo.upgrade(pkg)
+					self.repo.add(pkg, force=True)
 				else:
 					Msg.process(_('Adding package to the repo:'), pkg.name)
 					self.repo.add(pkg)
@@ -117,7 +144,7 @@ class LocalRepo:
 
 	def remove(self, names):
 		''' Remove packages from the repo '''
-		bad = [name for name in names if not self.repo.has_package(name)]
+		bad = [name for name in names if not self.repo.has(name)]
 
 		if bad:
 			Msg.error(_('Packages do not exist:'), ', '.join(bad))
@@ -143,7 +170,7 @@ class LocalRepo:
 			return False
 
 		for pkg in pkgs.values():
-			if self.repo.has_package(pkg['name']):
+			if self.repo.has(pkg['name']):
 				Msg.error(_('Package is already in the repo:'), pkg['name'])
 				return False
 
@@ -172,7 +199,7 @@ class LocalRepo:
 		Msg.process(_('Checking for updates'))
 		updates = []
 
-		for name in (pkg for pkg in pkgs if self.repo.has_package(pkg)):
+		for name in (pkg for pkg in pkgs if self.repo.has(pkg)):
 			if pkgs[name]['version'] > self.repo.package(name).version:
 				updates.append(pkgs[name])
 
@@ -195,29 +222,25 @@ class LocalRepo:
 		''' Upgrades all VCS packages from the AUR '''
 		Msg.process(_('Updating all VCS packages'))
 
+		vcs = self.repo.vcs_packages
+
+		if not vcs:
+			Msg.info(_('No VCS packages found'))
+			return True
+
 		try:
-			pkgs = Aur.packages(self.repo.packages)
+			updates = Aur.packages(vcs)
 		except Exception as e:
 			Msg.error(str(e))
 			return False
 
-		vcs_pkgs = []
-		for name in (pkg for pkg in pkgs if self.repo.has_package(pkg)):
-			if re.search(r'-(cvs|svn|hg|darcs|bzr|git)$', pkgs[name]['name']):
-				vcs_pkgs.append(pkgs[name])
-
-		if not vcs_pkgs:
-			Msg.info(_('No VCS packages found'))
-			return True
-
-		for pkg in vcs_pkgs:
-			Msg.result('{0}'.format(pkg['name']))
+		Msg.result('\n'.join(updates))
 
 		if not Msg.yes(_('Upgrade')):
 			Msg.info(_('Bye'))
 			return True
 
-		return self.add([pkg['uri'] for pkg in vcs_pkgs], True)
+		return self.add([pkg['uri'] for pkg in updates.values()], True)
 
 	def check(self):
 		''' Run an integrity check '''
@@ -248,7 +271,7 @@ class LocalRepo:
 	def elephant(self):
 		''' The elephant never forgets '''
 		try:
-			self.repo.elephant()
+			Pacman.repo_elephant()
 			return True
 		except Exception as e:
 			Msg.error(str(e))

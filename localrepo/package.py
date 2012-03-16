@@ -1,10 +1,10 @@
 # package.py
-# vim:ts=8:sw=8:noexpandtab
+# vim:ts=4:sw=4:noexpandtab
 
-from os import chdir, getcwd, listdir, remove
+from os import listdir, remove, stat
 from os.path import abspath, basename, dirname, isfile, isdir, join
-from subprocess import call, check_output, CalledProcessError
-from hashlib import sha256
+from subprocess import call
+from hashlib import md5, sha256
 from urllib.request import urlretrieve
 from tempfile import mkdtemp
 
@@ -13,6 +13,7 @@ import tarfile
 import re
 
 from localrepo.pacman import Pacman
+from localrepo.parser import PkgbuildParser, PkginfoParser
 from localrepo.msg import Msg
 
 class DependencyError(Exception):
@@ -66,8 +67,7 @@ class Package:
 	@staticmethod
 	def from_remote_tarball(url):
 		''' Downloads a remote tarball and forwards it to the package builder '''
-		tmpdir = Package.get_tmpdir()
-		path = join(tmpdir, basename(url))
+		path = join(Package.get_tmpdir(), basename(url))
 
 		try:
 			urlretrieve(url, path)
@@ -96,18 +96,15 @@ class Package:
 
 			if name is None:
 				name = root
-				continue
-
-			if name != root:
+			elif name != root:
 				raise Exception(_('Tarball contains multiple root directories'))
 
-		chdir(tmpdir)
-		archive.extractall()
+		archive.extractall(tmpdir)
 		archive.close()
 		return Package.from_pkgbuild(join(tmpdir, name))
 
 	@staticmethod
-	def from_pkgbuild(path):
+	def from_pkgbuild(path, ignore_deps=False):
 		''' Makes a package from a pkgbuild '''
 		path = abspath(path)
 
@@ -117,16 +114,10 @@ class Package:
 		if not isfile(path):
 			raise IOError(_('Could not find file: {0}').format(path))
 
-		try:
-			pkgbuild = open(path, 'r').read()
-		except:
-			raise IOError(_('Could not open file: {0}').format(path))
+		info = PkgbuildParser(path).parse()
 
-		makedeps = re.search('makedepends=\(([^\)]+)\)', pkgbuild)
-
-		if makedeps is not None:
-			makedeps = re.split('\s+', makedeps.group(1).replace('\'', ''))
-			unresolved = Pacman.check_deps(makedeps)
+		if not ignore_deps:
+			unresolved = Pacman.check_deps(info['depends'] + info['makedepends'])
 
 			if unresolved:
 				raise DependencyError(path, unresolved)
@@ -134,12 +125,11 @@ class Package:
 		path = dirname(path)
 		Pacman.make_package(path)
 
-		filenames = [f for f in listdir(path) if f.endswith(Package.EXT)]
+		for f in listdir(path):
+			if f.startswith('{0}'.format(info['name'])) and f.endswith(Package.EXT):
+				return Package.from_file(join(path, f))
 
-		if not filenames:
-			raise IOError(_('Could not find any package'))
-
-		return Package.from_file(join(path, filenames[0]))
+		raise IOError(_('Could not find any package'))
 
 	@staticmethod
 	def from_file(path):
@@ -165,7 +155,7 @@ class Package:
 
 		# Begin workaround
 		if not isfile(path):
-			raise Exception(_('File does not exist: {0}').join(path))
+			raise Exception(_('File does not exist: {0}').format(path))
 
 		tmpdir = Package.get_tmpdir()
 
@@ -175,17 +165,17 @@ class Package:
 		pkginfo = open(join(tmpdir, '.PKGINFO')).read()
 		# End workaround
 
-		infos = dict(re.findall('([a-z]+) = ([^\n]+)\n', pkginfo))
-
-		if any(True for r in ['pkgname', 'pkgver'] if r not in infos):
-			raise Exception(_('Invalid .PKGINFO'))
-
-		return Package(infos['pkgname'], infos['pkgver'], path, infos)
+		info = PkginfoParser(pkginfo).parse()
+		info['csize'] = stat(path).st_size
+		data = open(path, 'rb').read()
+		info['md5sum'] = md5(data).hexdigest()
+		info['sha256sum'] = sha256(data).hexdigest()
+		return Package(info['name'], info['version'], path, info)
 
 	@staticmethod
 	def forge(path):
 		''' Forwards the path to an package builder '''
-		if path.startswith('http://') or path.startswith('ftp://'):
+		if re.match('(?:http(?:s)?|ftp)://', path) is not None:
 			return Package.from_remote_tarball(path)
 
 		if path.endswith('.tar.gz'):
@@ -243,7 +233,7 @@ class Package:
 		except:
 			return False
 
-	def move(self, path):
+	def move(self, path, force=False):
 		''' Moves the package to a new location '''
 		path = abspath(path)
 
@@ -252,7 +242,10 @@ class Package:
 
 		path = join(path, self._filename)
 
-		if isfile(path):
+		if self._path == path:
+			return
+
+		if not force and isfile(path):
 			raise Exception(_('File already exists: {0}').format(path))
 
 		shutil.move(self._path, path)
@@ -260,10 +253,8 @@ class Package:
 
 	def remove(self):
 		''' Removes the package file '''
-		if not isfile(self._path):
-			raise Exception(_('Package does not exist: {0}').format(self._path))
-
-		remove(self._path)
+		if isfile(self._path):
+			remove(self._path)
 
 	def __str__(self):
 		return Msg.human_infos(self.infos)

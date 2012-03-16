@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.2
-# vim:ts=8:sw=8:noexpandtab
+# vim:ts=4:sw=4:noexpandtab
 
 from distutils.core import setup
 from os.path import join, isfile
@@ -14,7 +14,7 @@ msg = glob(join('share', 'locale', '*', 'LC_MESSAGES'))
 f = 'localrepo.mo'
 
 setup(name='local-repo',
-      version='1.4.1',
+      version='1.4.2',
       description='Arch Linux local repository manager',
       author='ushi',
       author_email='ushi@porkbox.net',
