@@ -1,17 +1,28 @@
 # repo.py
 # vim:ts=4:sw=4:noexpandtab
 
-from os import listdir, remove, stat
-from os.path import abspath, basename, dirname, isdir, isfile, join, normpath, splitext
+from os import listdir, makedirs, remove, stat
+from os.path import abspath, basename, dirname, isabs, isdir, isfile, join, normpath, splitext
+from tarfile import open as open_tarfile
+from pickle import dump as pickle, load as unpickle
 
-import tarfile
-import pickle
-import re
-
-from localrepo.pacman import Pacman
+from localrepo.pacman import Pacman, PacmanError
 from localrepo.package import Package
-from localrepo.parser import DescParser
-from localrepo.msg import Msg
+from localrepo.parser import DescParser, ParserError
+from localrepo.utils import Humanizer, LocalRepoError
+from localrepo.config import Config
+
+class RepoError(LocalRepoError):
+	''' Handles repo errors '''
+	pass
+
+class DbError(RepoError):
+	''' Handles database errors '''
+	pass
+
+class CacheError(RepoError):
+	''' Handles cache errors '''
+	pass
 
 class Repo:
 	''' A class handles a repository '''
@@ -29,8 +40,11 @@ class Repo:
 		''' Creates a repo object and loads the package list '''
 		self._db = self.find_db(path)
 		self._path = dirname(self._db)
-		self._cache = join(self._path, Repo.CACHE)
 		self._packages = {}
+		self._cache = Config.get('cache', Repo.CACHE)
+
+		if not isabs(self._cache):
+			self._cache = join(self._path, self._cache)
 
 	@property
 	def path(self):
@@ -45,8 +59,8 @@ class Repo:
 	@property
 	def vcs_packages(self):
 		''' Returns a list vcs packages '''
-		regex = '^.+-(?:cvs|svn|hg|darcs|bzr|git)$'
-		return [pkg for pkg in self._packages if re.match(regex, pkg)]
+		suffix = ('-git', '-cvs', '-svn', '-hg', '-darcs', '-bzr')
+		return [pkg for pkg in self._packages if pkg.endswith(suffix)]
 
 	@property
 	def size(self):
@@ -64,7 +78,7 @@ class Repo:
 			return path
 
 		if not isdir(path):
-			raise Exception(_('Could not find repo database: {0}').format(path))
+			raise DbError(_('Could not find database: {0}').format(path))
 
 		for f in listdir(path):
 			if f.endswith(Repo.EXT):
@@ -76,7 +90,7 @@ class Repo:
 		''' Loads the packages dict '''
 		try:
 			self._packages = self.load_from_cache()
-		except:
+		except CacheError:
 			self._packages = self.load_from_db()
 			self.update_cache()
 
@@ -85,15 +99,21 @@ class Repo:
 		if not isfile(self._db):
 			return {}
 
-		if not tarfile.is_tarfile(self._db):
-			raise Exception(_('File is no valid database: {0}').format(self._db))
+		try:
+			db = open_tarfile(self._db)
+		except:
+			raise DbError(_('Could not open database: {0}').format(self._db))
 
-		db = tarfile.open(self._db)
 		packages = {}
 
 		for member in (m for m in db.getmembers() if m.isfile() and m.name.endswith('desc')):
 			desc = db.extractfile(member).read().decode('utf8')
-			info = DescParser(desc).parse()
+
+			try:
+				info = DescParser(desc).parse()
+			except ParserError as e:
+				raise DbError(_('Invalid db entry: {0}: {1}').format(member.name, e.message))
+
 			path = join(self._path, info['filename'])
 			packages[info['name']] = Package(info['name'], info['version'], path, info)
 
@@ -103,25 +123,27 @@ class Repo:
 	def load_from_cache(self):
 		''' Loads the package dict from a cache file '''
 		if not isfile(self._cache):
-			raise IOError(_('File does not exist: {0}').format(self._cache))
+			raise CacheError(_('Cache file does not exist: {0}').format(self._cache))
 
-		if stat(self._db).st_mtime > stat(self._cache).st_mtime:
+		if not isfile(self._db) or stat(self._db).st_mtime > stat(self._cache).st_mtime:
 			self.clear_cache()
-			raise Exception(_('Cache is outdated'))
+			raise CacheError(_('Cache is outdated'))
 
 		try:
-			return pickle.load(open(self._cache, 'rb'))
+			return unpickle(open(self._cache, 'rb'))
 		except:
 			self.clear_cache()
-			raise Exception(_('Could not load cache'))
+			raise CacheError(_('Could not load cache'))
 
 	def update_cache(self):
 		''' Saves the package list in a cache file '''
 		try:
-			pickle.dump(self._packages, open(self._cache, 'wb'))
+			if not isdir(dirname(self._cache)):
+				makedirs(dirname(self._cache), mode=0o755, exist_ok=True)
+			pickle(self._packages, open(self._cache, 'wb'))
 		except:
 			self.clear_cache()
-			raise Exception(_('Could not update cache'))
+			raise CacheError(_('Could not update cache'))
 
 	def clear_cache(self):
 		''' Removes the cache file '''
@@ -130,10 +152,10 @@ class Repo:
 
 	def package(self, name):
 		''' Return a single package specified by name '''
-		if not self.has(name):
-			raise Exception(_('Package not found: {0}').format(name))
-
-		return self._packages[name]
+		try:
+			return self._packages[name]
+		except KeyError:
+			raise RepoError(_('Package not found: {0}').format(name))
 
 	def has(self, name):
 		''' Checks if repo has a package specified by name '''
@@ -146,8 +168,8 @@ class Repo:
 	def add(self, pkg, force=False):
 		''' Adds a new package to the repo '''
 		if self.has(pkg.name):
-			if not force:
-				raise Exception(_('Package is already in the repo: {0}').format(pkg.name))
+			if not force or self._packages[pkg.name].path == pkg.path:
+				raise RepoError(_('Package is already in the repo: {0}').format(pkg.name))
 
 			self._packages[pkg.name].remove()
 
@@ -156,9 +178,9 @@ class Repo:
 
 		try:
 			Pacman.repo_add(self._db, [pkg.path])
-		except Exception as e:
+		except PacmanError as e:
 			self.clear_cache()
-			raise e
+			raise DbError(_('Could not add packages to the db: {0}').format(e.message))
 
 		self.update_cache()
 
@@ -173,9 +195,9 @@ class Repo:
 
 		try:
 			Pacman.repo_remove(self._db, names)
-		except Exception as e:
+		except PacmanError as e:
 			self.clear_cache()
-			raise e
+			raise DbError(_('Could not remove packages from the db: {0}').format(e.message))
 
 		self.update_cache()
 
@@ -215,4 +237,4 @@ class Repo:
 		if isfile(self._db):
 			infos['last update'] = round(stat(self._db).st_mtime)
 
-		return Msg.human_infos(infos)
+		return Humanizer.info(infos)

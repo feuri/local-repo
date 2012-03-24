@@ -2,25 +2,37 @@
 # vim:ts=4:sw=4:noexpandtab
 
 from os import listdir, remove, stat
-from os.path import abspath, basename, dirname, isfile, isdir, join
+from os.path import abspath, basename, dirname, isabs, isfile, isdir, join, normpath
+from shutil import copytree, move, rmtree
 from subprocess import call
 from hashlib import md5, sha256
 from urllib.request import urlretrieve
 from tempfile import mkdtemp
+from tarfile import is_tarfile, open as open_tarfile
+from distutils.version import LooseVersion
 
-import shutil
-import tarfile
-import re
-
-from localrepo.pacman import Pacman
+from localrepo.pacman import Pacman, PacmanError
 from localrepo.parser import PkgbuildParser, PkginfoParser
-from localrepo.msg import Msg
+from localrepo.utils import Humanizer, LocalRepoError, Msg
+from localrepo.config import Config
+from localrepo.log import BuildLog, PkgbuildLog
 
-class DependencyError(Exception):
+class PackageError(LocalRepoError):
+	''' Handles package errors '''
+	pass
+
+
+class BuildError(PackageError):
+	''' Handles build errors '''
+	pass
+
+
+class DependencyError(PackageError):
 	''' Handles missing dependencies '''
 
 	def __init__(self, pkgbuild, deps):
 		''' Sets the path to the pkgbuild and the deps '''
+		super().__init__(_('Unresolved dependencies: {0}').format(', '.join(deps)))
 		self._pkgbuild = pkgbuild
 		self._deps = deps
 
@@ -34,18 +46,26 @@ class DependencyError(Exception):
 		''' Returns the missing dependencies '''
 		return self._deps
 
-	def __str__(self):
-		return _('Unresolved dependencies: {0}').format(', '.join(self._deps))
 
 class Package:
 	''' The package class provides static methods for building packages and
 	an objectiv part to manage existing packages '''
 
-	#: Package file extension
-	EXT = '.pkg.tar.xz'
+	#: Package file extensions
+	EXT = ('.pkg.tar', '.pkg.tar.gz', '.pkg.tar.bz2', '.pkg.tar.xz')
+	# '.pkg.tar.Z' would also be possible, but it's not supported by tarfile
+
+	#: Tarball extensions
+	TARBALLEXT = ('.tar', '.tar.gz', '.tar.bz2')
+
+	#: PKGINFO filename
+	PKGINFO = '.PKGINFO'
 
 	#: PKGBUILD filename
 	PKGBUILD = 'PKGBUILD'
+
+	#: Log file extension
+	LOGEXT = '.log'
 
 	#: Path to a temporary directory
 	tmpdir = None
@@ -54,54 +74,82 @@ class Package:
 	def get_tmpdir():
 		''' Creates a temporary directory '''
 		if Package.tmpdir is None or not isdir(Package.tmpdir):
-			Package.tmpdir = mkdtemp('-local-repo')
+			Package.tmpdir = mkdtemp(prefix='local-repo-')
 		return Package.tmpdir
 
 	@staticmethod
 	def clean():
 		''' Removes the temporary directory '''
 		if Package.tmpdir is not None and isdir(Package.tmpdir):
-			shutil.rmtree(Package.tmpdir)
+			rmtree(Package.tmpdir)
 		Package.tmpdir = None
 
 	@staticmethod
-	def from_remote_tarball(url):
+	def from_remote_file(url):
 		''' Downloads a remote tarball and forwards it to the package builder '''
 		path = join(Package.get_tmpdir(), basename(url))
 
 		try:
-			urlretrieve(url, path)
+			urlretrieve(url, path, reporthook=Msg.progress)
 		except:
-			raise Exception(_('Could not download file: {0}').format(url))
+			raise BuildError(_('Could not download file: {0}').format(url))
 
-		return Package.from_tarball(path)
+		return Package.forge(path)
 
 	@staticmethod
 	def from_tarball(path):
 		''' Extracts a pkgbuild tarball and forward it to the package builder '''
-		tmpdir = Package.get_tmpdir()
 		path = abspath(path)
 
-		if not isfile(path) or not tarfile.is_tarfile(path):
-			raise Exception(_('File is no valid tarball: {0}').format(path))
+		try:
+			archive = open_tarfile(path)
+		except:
+			raise BuildError(_('Could not open tarball: {0}').format(path))
 
-		archive = tarfile.open(path)
-		name = None
+		tmpdir = Package.get_tmpdir()
+		root = None
 
-		for member in archive.getnames():
-			if member.startswith('/') or member.startswith('..'):
-				raise Exception(_('Tarball contains bad member: {0}').format(member))
+		for member in archive.getmembers():
+			if isabs(member.name) or not normpath(join(tmpdir, member.name)).startswith(tmpdir):
+				raise BuildError(_('Tarball contains bad member: {0}').format(member.name))
 
-			root = member.split('/')[0]
+			if root is False:
+				continue
 
-			if name is None:
-				name = root
-			elif name != root:
-				raise Exception(_('Tarball contains multiple root directories'))
+			name = normpath(member.name)
+			_root = name.split('/')[0]
 
-		archive.extractall(tmpdir)
-		archive.close()
-		return Package.from_pkgbuild(join(tmpdir, name))
+			if member.isfile() and _root == name:
+				root = False
+			elif root is None:
+				root = _root
+			elif root != _root:
+				root = False
+
+		if not root:
+			tmpdir = mkdtemp(dir=tmpdir)
+
+		try:
+			archive.extractall(tmpdir)
+			archive.close()
+		except:
+			raise BuildError(_('Could not extract tarball: {0}').format(path))
+
+		return Package.from_pkgbuild(join(tmpdir, root) if root else tmpdir)
+
+	@staticmethod
+	def _load_pkgbuild(name, path):
+		''' Stores the PKGBUILD dir or loads an existing PKGBUILD from the pkgbuild dir '''
+		if not path.startswith(PkgbuildLog.log_dir(name)):
+			PkgbuildLog.store(name, path)
+			return path
+
+		try:
+			tmpdir = join(mkdtemp(dir=Package.get_tmpdir()), name)
+			copytree(path, tmpdir)
+			return tmpdir
+		except:
+			raise BuildError(_('Could not load PKGBUILD into workspace: {0}').format(path))
 
 	@staticmethod
 	def from_pkgbuild(path, ignore_deps=False):
@@ -112,7 +160,7 @@ class Package:
 			path = join(path, Package.PKGBUILD)
 
 		if not isfile(path):
-			raise IOError(_('Could not find file: {0}').format(path))
+			raise BuildError(_('Could not find PKGBUILD: {0}').format(path))
 
 		info = PkgbuildParser(path).parse()
 
@@ -123,13 +171,28 @@ class Package:
 				raise DependencyError(path, unresolved)
 
 		path = dirname(path)
-		Pacman.make_package(path)
+		log = bool(Config.get('buildlog', False))
 
-		for f in listdir(path):
-			if f.startswith('{0}'.format(info['name'])) and f.endswith(Package.EXT):
-				return Package.from_file(join(path, f))
+		if Config.get('pkgbuild', False):
+			path = Package._load_pkgbuild(info['name'], path)
 
-		raise IOError(_('Could not find any package'))
+		try:
+			Pacman.make_package(path, log=log)
+		except PacmanError as e:
+			raise e
+		finally:
+			pkgfile = None
+
+			for f in (f for f in listdir(path) if f.startswith(info['name'])):
+				if log and f.endswith(Package.LOGEXT):
+					BuildLog.store(info['name'], join(path, f))
+				elif f.endswith(Package.EXT):
+					pkgfile = f
+
+		if pkgfile:
+			return Package.from_file(join(path, pkgfile))
+
+		raise BuildError(_('Could not find any package'))
 
 	@staticmethod
 	def from_file(path):
@@ -141,28 +204,39 @@ class Package:
 		# The current version of tarfile (0.9) does not support lzma compressed archives.
 		# The next version will: http://hg.python.org/cpython/file/default/Lib/tarfile.py
 
-		#if not isfile(path) or not tarfile.is_tarfile(path):
-		#	raise Exception('File is not a valid package: {0}'.format(path))
-		#
-		#pkg = tarfile.open(path)
+		#try:
+		#	pkg = open_tarfile(path)
+		#except:
+		#	raise BuildError(_('Could not open package: {0}').format(path))
 		#
 		#try:
 		#	pkginfo = pkg.extractfile('.PKGINFO').read().decode('utf8')
 		#except:
-		#	raise Exception('File is not valid package: {0}'.format(path))
-		#
-		#pkg.close()
+		#	raise BuildError(_('Could not read package info: {0}').format(path))
+		#finally:
+		#	pkg.close()
 
 		# Begin workaround
 		if not isfile(path):
-			raise Exception(_('File does not exist: {0}').format(path))
+			raise BuildError(_('File does not exist: {0}').format(path))
 
-		tmpdir = Package.get_tmpdir()
+		if is_tarfile(path):
+			pkg = open_tarfile(path)
 
-		if call(['tar', '-xJf', path, '-C', tmpdir, '.PKGINFO']) is not 0:
-			raise Exception(_('An error occurred in tar'))
+			try:
+				pkginfo = pkg.extractfile(Package.PKGINFO).read().decode('utf8')
+			except:
+				raise BuildError(_('Could not read package info: {0}').format(path))
+			finally:
+				pkg.close()
+		else:
+			# Handling lzma compressed archives (.pkg.tar.xz)
+			tmpdir = Package.get_tmpdir()
 
-		pkginfo = open(join(tmpdir, '.PKGINFO')).read()
+			if call(['tar', '-xJf', path, '-C', tmpdir, Package.PKGINFO]) is not 0:
+				raise BuildError(_('An error occurred in tar'))
+
+			pkginfo = open(join(tmpdir, Package.PKGINFO)).read()
 		# End workaround
 
 		info = PkginfoParser(pkginfo).parse()
@@ -175,19 +249,19 @@ class Package:
 	@staticmethod
 	def forge(path):
 		''' Forwards the path to an package builder '''
-		if re.match('(?:http(?:s)?|ftp)://', path) is not None:
-			return Package.from_remote_tarball(path)
-
-		if path.endswith('.tar.gz'):
-			return Package.from_tarball(path)
-
-		if basename(path) == Package.PKGBUILD:
-			return Package.from_pkgbuild(path)
+		if path.startswith(('http://', 'https://', 'ftp://')):
+			return Package.from_remote_file(path)
 
 		if path.endswith(Package.EXT):
 			return Package.from_file(path)
 
-		raise Exception(_('Invalid file name: {0}').format(path))
+		if basename(path) == Package.PKGBUILD or isdir(path):
+			return Package.from_pkgbuild(path)
+
+		if path.endswith(Package.TARBALLEXT):
+			return Package.from_tarball(path)
+
+		raise BuildError(_('Invalid file name: {0}').format(path))
 
 	def __init__(self, name, version, path, infos=None):
 		''' Creates new package object, additional package infos must be a dict '''
@@ -233,12 +307,19 @@ class Package:
 		except:
 			return False
 
+	def has_smaller_version_than(self, version):
+		''' Compares the current package version with another one '''
+		try:
+			return LooseVersion(self._version) < LooseVersion(version)
+		except:
+			return self._version < version
+
 	def move(self, path, force=False):
 		''' Moves the package to a new location '''
 		path = abspath(path)
 
 		if not isdir(path):
-			raise Exception(_('Destination is no directory: {0}').format(path))
+			raise Package(_('Destination is no directory: {0}').format(path))
 
 		path = join(path, self._filename)
 
@@ -246,9 +327,9 @@ class Package:
 			return
 
 		if not force and isfile(path):
-			raise Exception(_('File already exists: {0}').format(path))
+			raise PackageError(_('File already exists: {0}').format(path))
 
-		shutil.move(self._path, path)
+		move(self._path, path)
 		self._path = path
 
 	def remove(self):
@@ -257,4 +338,4 @@ class Package:
 			remove(self._path)
 
 	def __str__(self):
-		return Msg.human_infos(self.infos)
+		return Humanizer.info(self.infos)

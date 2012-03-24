@@ -5,274 +5,294 @@ from localrepo.package import Package, DependencyError
 from localrepo.pacman import Pacman
 from localrepo.repo import Repo
 from localrepo.aur import Aur
-from localrepo.msg import Msg
+from localrepo.log import Log, BuildLog, PkgbuildLog
+from localrepo.utils import Msg, LocalRepoError
+from localrepo.config import Config
 
 class LocalRepo:
 	''' The main class for the local-repo programm '''
 
-	@staticmethod
-	def _install_deps(names):
-		''' Installs missing dependencies '''
-		Msg.info(_('Need following packages as dependencies: {0}').format(', '.join(names)))
-
-		if not Msg.yes(_('Install')):
-			if Msg.yes(_('Try without installing dependencies')):
-				return True
-
-			Msg.info(_('Bye'))
-			return False
-
-		try:
-			Pacman.install_as_deps(names)
-			return True
-		except Exception as e:
-			Msg.error(str(e))
-			return False
+	#: The repo instance
+	_repo = None
 
 	@staticmethod
-	def shutdown(error):
-		''' Clean up '''
+	def shutdown(status=0):
+		''' Cleans up and exits with status '''
 		Package.clean()
-		exit(0) if not error else exit(1)
+		Log.close()
+		exit(status)
+
+	@staticmethod
+	def error(error):
+		''' Prints the error message and shuts down '''
+		Msg.error(error.message)
+		Log.error(error.message)
+		LocalRepo.shutdown(1)
 
 	@staticmethod
 	def abort():
+		''' This called by KeyboardInterrupt '''
 		Msg.error(_('Execution cancelled by user'))
-		LocalRepo.shutdown(True)
+		LocalRepo.shutdown(1)
 
-	def __init__(self, path):
-		''' The constructor needs the path to the repo database file '''
+	@staticmethod
+	def init(path, config_file=Config.CONFIGFILE):
+		''' Needs the path to repo, or the repo name if specified in the config file '''
 		try:
-			self.repo = Repo(path)
-		except Exception as e:
-			Msg.error(str(e))
-			LocalRepo.shutdown(True)
+			Config.init(path, config_file)
+			LocalRepo._repo = Repo(Config.get('path', path))
+			Log.init(LocalRepo._repo.path)
+			BuildLog.init(LocalRepo._repo.path)
+			PkgbuildLog.init(LocalRepo._repo.path)
+		except LocalRepoError as e:
+			LocalRepo.error(e)
 
-	def clear_cache(self):
-		''' Clears the repo cache '''
-		Msg.process(_('Clearing the cache'))
-
-		try:
-			self.repo.clear_cache()
-			return True
-		except Exception as e:
-			Msg.error(str(e))
-			return False
-
-	def load(self):
+	@staticmethod
+	def load_repo():
 		''' Loads the repo '''
-		Msg.process(_('Loading repo database: {0}').format(self.repo.path))
-		self.repo.load()
+		Msg.process(_('Loading repo: {0}').format(LocalRepo._repo.path))
 
-	def size(self):
-		''' Prints the number of packages '''
-		Msg.info(str(self.repo))
-		return True
+		try:
+			LocalRepo._repo.load()
+		except LocalRepoError as e:
+			LocalRepo.error(e)
 
-	def list(self):
-		''' Print all repo packages '''
-		if self.repo.size is 0:
+	@staticmethod
+	def repo_info():
+		''' Prints some repo info '''
+		Msg.info(LocalRepo._repo)
+
+	@staticmethod
+	def list():
+		''' Prints all repo packages '''
+		if LocalRepo._repo.size is 0:
 			Msg.info(_('This repo has no packages'))
-			return True
+			return
 
-		for name, pkg in sorted(self.repo.packages.items()):
-			Msg.info(pkg.name, pkg.version)
+		for name in sorted(LocalRepo._repo.packages):
+			Msg.info(name, LocalRepo._repo.package(name).version)
 
-		return True
-
-	def info(self, names):
-		''' Print all available info of specified packages '''
+	@staticmethod
+	def info(names):
+		''' Prints all available info of specified packages '''
 		for name in names:
-			if not self.repo.has(name):
-				Msg.error(_('Package does not exist:'), name)
-				return False
+			if not LocalRepo._repo.has(name):
+				Msg.error(_('Package does not exist: {0}').format(name))
+				LocalRepo.shutdown(1)
 
-			Msg.process(_('Package information:'), name)
-			Msg.info(str(self.repo.package(name)))
+			Msg.process(_('Package information: {0}').format(name))
+			Msg.info(LocalRepo._repo.package(name))
 
-		return True
-
-	def find(self, q):
-		''' Search the repo for packages '''
-		res = self.repo.find(q)
+	@staticmethod
+	def find(q):
+		''' Searches the repo for packages '''
+		res = LocalRepo._repo.find(q)
 
 		if not res:
 			Msg.error(_('No package found'))
-			return True
+			return
 
 		for r in res:
-			Msg.info(r, self.repo.package(r).version)
+			Msg.info(r, LocalRepo._repo.package(r).version)
 
-		return True
+	@staticmethod
+	def _install_deps(names):
+		''' Installs missing dependencies '''
+		Msg.info(_('Need following packages as dependencies:\n[{0}]').format(', '.join(names)))
 
-	def add(self, paths, upgrade=False):
-		''' Add packages to the repo '''
-		for path in paths:
-			Msg.process(_('Making a new package'))
+		if not Msg.ask(_('Install?')):
+			if Msg.ask(_('Try without installing dependencies?')):
+				return
 
-			try:
-				pkg = Package.forge(path)
-			except DependencyError as e:
-				if not LocalRepo._install_deps(e.deps):
-					return False
-
-				try:
-					pkg = Package.from_pkgbuild(e.pkgbuild, True)
-				except Exception as e:
-					Msg.error(str(e))
-					return False
-			except Exception as e:
-				Msg.error(str(e))
-				return False
-
-			try:
-				if upgrade:
-					Msg.process(_('Upgrading package:'), pkg.name)
-					self.repo.add(pkg, force=True)
-				else:
-					Msg.process(_('Adding package to the repo:'), pkg.name)
-					self.repo.add(pkg)
-			except Exception as e:
-				Msg.error(str(e))
-				return False
-
-		return True
-
-	def upgrade(self, paths):
-		''' Upgrade packages '''
-		return self.add(paths, True)
-
-	def remove(self, names):
-		''' Remove packages from the repo '''
-		bad = [name for name in names if not self.repo.has(name)]
-
-		if bad:
-			Msg.error(_('Packages do not exist:'), ', '.join(bad))
-			return False
-
-		Msg.process(_('Removing packages:'), ', '.join(names))
+			Msg.info(_('Bye'))
+			LocalRepo.shutdown(1)
 
 		try:
-			self.repo.remove(names)
-			return True
-		except Exception as e:
-			Msg.error(str(e))
-			return False
+			Pacman.install(names, as_deps=True)
+		except LocalRepoError as e:
+			LocalRepo.error(e)
 
-	def aur_add(self, names):
-		''' Download, make and add packages from the AUR '''
+	@staticmethod
+	def _make_package(path):
+		''' Makes a new package '''
+		Msg.process(_('Forging a new package: {0}').format(path))
+		Log.log(_('Forging a new package: {0}').format(path))
+
+		try:
+			return Package.forge(path)
+		except DependencyError as e:
+			LocalRepo._install_deps(e.deps)
+
+			try:
+				return Package.from_pkgbuild(e.pkgbuild, ignore_deps=True)
+			except LocalRepoError as e:
+				LocalRepo.error(e)
+		except LocalRepoError as e:
+			LocalRepo.error(e)
+
+	@staticmethod
+	def add(paths, force=False):
+		''' Adds packages to the repo '''
+		for path in paths:
+			pkg = LocalRepo._make_package(path)
+
+			try:
+				Msg.process(_('Adding package to the repo: {0}').format(pkg.name))
+				LocalRepo._repo.add(pkg, force=force)
+				Log.log(_('Added Package: {0} {1}').format(pkg.name, pkg.version))
+			except LocalRepoError as e:
+				LocalRepo.error(e)
+
+	@staticmethod
+	def rebuild(names):
+		''' Rebuilds the specified packages '''
+		if not Config.get('pkgbuild', False):
+			LocalRepo.error(_('Please specify \'pkgbuild\' in your config file!'))
+
+		LocalRepo.add([PkgbuildLog.log_dir(name) for name in names], force=True)
+
+	@staticmethod
+	def remove(names):
+		''' Removes packages from the repo '''
+		missing = [name for name in names if not LocalRepo._repo.has(name)]
+
+		if missing:
+			Msg.error(_('Packages do not exist: {0}').format(', '.join(missing)))
+			LocalRepo.shutdown(1)
+
+		Msg.process(_('Removing packages: {0}').format(', '.join(names)))
+
+		try:
+			LocalRepo._repo.remove(names)
+			Log.log(_('Removed packages: {0}').format(', '.join(names)))
+		except LocalRepoError as e:
+			LocalRepo.error(e)
+
+	@staticmethod
+	def aur_add(names, force=False):
+		''' Downloads, makes and adds packages from the AUR '''
 		Msg.process(_('Retrieving package info from the AUR'))
 
 		try:
 			pkgs = Aur.packages(names)
-		except Exception as e:
-			Msg.error(str(e))
-			return False
+		except LocalRepoError as e:
+			LocalRepo.error(e)
 
 		for pkg in pkgs.values():
-			if self.repo.has(pkg['name']):
-				Msg.error(_('Package is already in the repo:'), pkg['name'])
-				return False
+			if not force and LocalRepo._repo.has(pkg['name']):
+				Msg.error(_('Package is already in the repo: {0}').format(pkg['name']))
+				LocalRepo.shutdown(1)
 
-			if not self.add([pkg['uri']]):
-				return False
+			LocalRepo.add([pkg['uri']], force=force)
 
-		return True
-
-	def aur_upgrade(self):
+	@staticmethod
+	def aur_upgrade():
 		''' Upgrades all packages from the AUR '''
-		Msg.info(_('{0} packages found').format(self.repo.size))
+		Msg.info(_('{0} packages found').format(LocalRepo._repo.size))
+		Log.log(_('Starting an AUR upgrade'))
 
-		if self.repo.size is 0:
+		if LocalRepo._repo.size is 0:
 			Msg.info(_('Nothing to do'))
-			return True
+			return
 
 		Msg.process(_('Retrieving package info from the AUR'))
 
 		try:
-			pkgs = Aur.packages(self.repo.packages)
-		except Exception as e:
-			Msg.error(str(e))
-			return False
+			pkgs = Aur.packages(LocalRepo._repo.packages)
+		except LocalRepoError as e:
+			LocalRepo.error(e)
 
 		Msg.info(_('{0} packages found').format(len(pkgs)))
 		Msg.process(_('Checking for updates'))
 		updates = []
 
-		for name in (pkg for pkg in pkgs if self.repo.has(pkg)):
-			if pkgs[name]['version'] > self.repo.package(name).version:
-				updates.append(pkgs[name])
+		for name, pkg in ((name, pkg) for name, pkg in pkgs.items() if LocalRepo._repo.has(name)):
+			oldpkg = LocalRepo._repo.package(name)
+
+			if oldpkg.has_smaller_version_than(pkg['version']):
+				updates.append(pkg)
+				Msg.result('{0} ({1} -> {2})'.format(name, oldpkg.version, pkg['version']))
 
 		if not updates:
 			Msg.info(_('All packages are up to date'))
-			return True
+			return
 
-		for pkg in updates:
-			Msg.result('{0} ({1} -> {2})'.format(pkg['name'],
-			                                     self.repo.package(pkg['name']).version,
-			                                     pkg['version']))
-
-		if not Msg.yes(_('Upgrade')):
+		if not Msg.ask(_('Upgrade?')):
 			Msg.info(_('Bye'))
-			return True
+			LocalRepo.shutdown(1)
 
-		return self.add([pkg['uri'] for pkg in updates], True)
+		LocalRepo.add([pkg['uri'] for pkg in updates], force=True)
 
-	def vcs_upgrade(self):
+	@staticmethod
+	def vcs_upgrade():
 		''' Upgrades all VCS packages from the AUR '''
 		Msg.process(_('Updating all VCS packages'))
-
-		vcs = self.repo.vcs_packages
+		Log.log(_('Starting a VCS upgrade'))
+		vcs = LocalRepo._repo.vcs_packages
 
 		if not vcs:
 			Msg.info(_('No VCS packages found'))
-			return True
+			return
+
+		Msg.process(_('Retrieving package info from the AUR'))
 
 		try:
 			updates = Aur.packages(vcs)
-		except Exception as e:
-			Msg.error(str(e))
-			return False
+		except LocalRepoError as e:
+			LocalRepo.error(e)
 
 		Msg.result('\n'.join(updates))
 
-		if not Msg.yes(_('Upgrade')):
+		if not Msg.ask(_('Upgrade?')):
 			Msg.info(_('Bye'))
-			return True
+			return
 
-		return self.add([pkg['uri'] for pkg in updates.values()], True)
+		LocalRepo.add([pkg['uri'] for pkg in updates.values()], force=True)
 
-	def check(self):
+	@staticmethod
+	def clear_cache():
+		''' Clears the repo cache '''
+		Msg.process(_('Clearing the cache'))
+
+		try:
+			LocalRepo._repo.clear_cache()
+			Log.log(_('Cleared cache'))
+		except LocalRepoError as e:
+			LocalRepo.error(e)
+
+	@staticmethod
+	def check():
 		''' Run an integrity check '''
-		Msg.info(_('{0} packages found').format(self.repo.size))
+		Msg.info(_('{0} packages found').format(LocalRepo._repo.size))
 		Msg.process(_('Running integrity check'))
-		errors = self.repo.check()
+		errors = LocalRepo._repo.check()
 
 		if not errors:
 			Msg.info(_('No errors found'))
-			return True
+			Log.log(_('Finished integrity check without any errors'))
+			return
+
+		Log.log(_('Finished integrity check with errors:'))
 
 		for e in errors:
-			Msg.error(e)
+			Msg.result(e)
+			Log.error(e)
 
-		return True
-
-	def restore(self):
+	@staticmethod
+	def restore_db():
 		''' Try to restore the database file '''
 		Msg.process(_('Restoring database'))
 
 		try:
-			self.repo.restore_db()
-			return True
-		except Exception as e:
-			Msg.error(str(e))
-			return False
+			LocalRepo._repo.restore_db()
+			Log.log(_('Restored Database'))
+		except LocalRepoError as e:
+			LocalRepo.error(e)
 
-	def elephant(self):
+	@staticmethod
+	def elephant():
 		''' The elephant never forgets '''
 		try:
 			Pacman.repo_elephant()
-			return True
-		except Exception as e:
-			Msg.error(str(e))
-			return False
+		except LocalRepoError as e:
+			LocalRepo.error(e)

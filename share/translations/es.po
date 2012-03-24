@@ -1,22 +1,20 @@
 # local-repo translation file
 # Copyright (C) 2012 ushi
 # This file is distributed under the same license as the local-repo package.
+# Jose M. Prieto <jmprieto@gmx.net>, 2012.
 #
-# Translators:
-# Hector Mtz-Seara <hseara@gmail.com>, 2012.
 msgid ""
 msgstr ""
-"Project-Id-Version: local-repo\n"
+"Project-Id-Version: 1.4\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2012-03-21 21:34+0100\n"
-"PO-Revision-Date: 2012-03-14 21:20+0000\n"
-"Last-Translator: martinkalcher <martin.kalcher@googlemail.com>\n"
+"PO-Revision-Date: 2012-03-18 14:46+0100\n"
+"Last-Translator: Jose M. Prieto <jmprieto@gmx.net>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
-"Language: ca\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1)\n"
 
 #: ../local-repo:24
 msgid ""
@@ -24,18 +22,18 @@ msgid ""
 "repository with the first argument. If no option is specified, some repo "
 "information will be printed."
 msgstr ""
-"Aquest programa ajuda a gestionar els repositoris locals. Especifiqueu la "
-"ruta al repositori en el primer argument. Si no s'especifica cap opció, "
-"certa informació dels repositoris s'imprimirà."
+"Este programa ayuda a administrar repositorios locales. Especifique la ruta "
+"al repositorio como primer argumento. Si no se especifican opciones, se "
+"mostrará información sobre el repositorio."
 
 #: ../local-repo:27
 #, python-format
 msgid "%(prog)s path [options]"
-msgstr "%(prog)s ruta [opcions]"
+msgstr "%(prog)s ruta [opciones]"
 
 #: ../local-repo:28
 msgid "Please report bugs at: <{0}>"
-msgstr "Si us plau, informeu d'errades a:<{0}>"
+msgstr "Por favor, comunique errores en: <{0}>"
 
 #: ../local-repo:31 ../local-repo:35 ../local-repo:55
 msgid "path"
@@ -54,23 +52,23 @@ msgstr ""
 
 #: ../local-repo:40 ../local-repo:59 ../local-repo:65
 msgid "name"
-msgstr "nom"
+msgstr "paquete"
 
 #: ../local-repo:41
 msgid "download, build and add a package from the AUR to the repo"
-msgstr "Baixa, compila i afegeix un paquet de AUR al repositori."
+msgstr "descarga un paquete del AUR, lo compila y lo añade al repositorio"
 
 #: ../local-repo:44
 msgid "run an integrity check"
-msgstr "Executa una comprovació d'integritat"
+msgstr "hace una comprobación de integridad"
 
 #: ../local-repo:47
 msgid "clear the cache"
-msgstr ""
+msgstr "limpia la caché"
 
 #: ../local-repo:50
 msgid "the elephant never forgets"
-msgstr "L'elefant mai oblida "
+msgstr "el elefante nunca olvida"
 
 #: ../local-repo:53
 msgid ""
@@ -83,15 +81,15 @@ msgstr ""
 
 #: ../local-repo:60
 msgid "display info for specified packages"
-msgstr "mostrar la informació per als paquets especificats"
+msgstr "muestra información de los paquetes especificados"
 
 #: ../local-repo:63
 msgid "list all packages from the repo"
-msgstr "llista de tots els paquets del repositori"
+msgstr "lista todos los paquetes del repositorio"
 
 #: ../local-repo:66
 msgid "remove packages from the repo"
-msgstr "esborra els paquets del repositori"
+msgstr "quita paquetes del repositorio"
 
 #: ../local-repo:69
 msgid "restore repo database"
@@ -99,34 +97,36 @@ msgstr ""
 
 #: ../local-repo:71
 msgid "term"
-msgstr "terme"
+msgstr "término"
 
 #: ../local-repo:72
 msgid "find packages"
-msgstr "troba paquets"
+msgstr "busca paquetes"
 
 #: ../local-repo:75
 msgid "upgrade all packages in the repo, which are available in the AUR"
 msgstr ""
-"actualitza tots els paquets al repositori que estiguin disponibles en AUR"
+"actualiza todos los paquetes del repositorio que estén disponibles en el AUR"
 
 #: ../local-repo:78
 msgid ""
 "upgrade all packages in the repo, which are based on a VCS and available in "
 "the AUR"
 msgstr ""
+"actualiza todos los paquetes del repositorio alojados en un VCS que estén "
+"disponibles en el AUR"
 
 #: ../localrepo/aur.py:45
 msgid "Could not reach the AUR"
-msgstr "No s'ha pogut connectar amb AUR "
+msgstr "No se pudo acceder al AUR"
 
 #: ../localrepo/aur.py:48 ../localrepo/aur.py:59
 msgid "AUR responded with error: {0}"
-msgstr "AUR ha respòs amb l'error:{0} "
+msgstr "El AUR respondió con el error: {0}"
 
 #: ../localrepo/aur.py:53 ../localrepo/aur.py:56 ../localrepo/aur.py:67
 msgid "AUR responded with invalid data"
-msgstr "AUR ha respòs amb dades no vàlides"
+msgstr "El AUR respondió con datos no válidos"
 
 #: ../localrepo/config.py:48
 msgid "Could not parse config file: {0}"
@@ -138,7 +138,7 @@ msgstr ""
 
 #: ../localrepo/localrepo.py:32
 msgid "Execution cancelled by user"
-msgstr "Execució cancel·lada per l'usuari "
+msgstr "Ejecución cancelada por el usuario"
 
 #: ../localrepo/localrepo.py:47
 msgid "Loading repo: {0}"
@@ -146,7 +146,7 @@ msgstr ""
 
 #: ../localrepo/localrepo.py:63
 msgid "This repo has no packages"
-msgstr "Aquest repositori no conté paquets"
+msgstr "Este repositorio no contiene paquetes"
 
 #: ../localrepo/localrepo.py:74
 msgid "Package does not exist: {0}"
@@ -158,7 +158,7 @@ msgstr ""
 
 #: ../localrepo/localrepo.py:86
 msgid "No package found"
-msgstr "Paquet no trobat"
+msgstr "No se encontraron paquetes"
 
 #: ../localrepo/localrepo.py:95
 msgid ""
@@ -177,7 +177,7 @@ msgstr ""
 #: ../localrepo/localrepo.py:101 ../localrepo/localrepo.py:203
 #: ../localrepo/localrepo.py:226
 msgid "Bye"
-msgstr "Adeu"
+msgstr "Adiós"
 
 #: ../localrepo/localrepo.py:112
 msgid "Forging a new package: {0}"
@@ -197,28 +197,28 @@ msgstr ""
 
 #: ../localrepo/localrepo.py:157 ../localrepo/localrepo.py:180
 msgid "Retrieving package info from the AUR"
-msgstr "Rebent informació del paquet d'AUR"
+msgstr "Recuperando información de los paquetes desde el AUR"
 
 #: ../localrepo/localrepo.py:166 ../localrepo/repo.py:167
 msgid "Package is already in the repo: {0}"
-msgstr "El paquet ja està en el repositori:{0}"
+msgstr "El paquete ya está en el repositorio: {0}"
 
 #: ../localrepo/localrepo.py:174 ../localrepo/localrepo.py:187
 #: ../localrepo/localrepo.py:244
 msgid "{0} packages found"
-msgstr "{0} paquet trobat"
+msgstr "{0} paquetes encontrados"
 
 #: ../localrepo/localrepo.py:177
 msgid "Nothing to do"
-msgstr "Res a fer"
+msgstr "Nada que hacer"
 
 #: ../localrepo/localrepo.py:188
 msgid "Checking for updates"
-msgstr "Comprovant actualitzacions"
+msgstr "Comprobando actualizaciones"
 
 #: ../localrepo/localrepo.py:199
 msgid "All packages are up to date"
-msgstr "Tots els paquets estan al dia"
+msgstr "Todos los paquetes están actualizados"
 
 #: ../localrepo/localrepo.py:202 ../localrepo/localrepo.py:225
 msgid "Upgrade?"
@@ -226,35 +226,35 @@ msgstr ""
 
 #: ../localrepo/localrepo.py:211
 msgid "Updating all VCS packages"
-msgstr ""
+msgstr "Actualizando todos los paquetes de VCS"
 
 #: ../localrepo/localrepo.py:215
 msgid "No VCS packages found"
-msgstr ""
+msgstr "No se encontraron paquetes de VCS"
 
 #: ../localrepo/localrepo.py:234
 msgid "Clearing the cache"
-msgstr ""
+msgstr "Borrando la caché"
 
 #: ../localrepo/localrepo.py:245
 msgid "Running integrity check"
-msgstr "Executant comprovació d'integritat"
+msgstr "Comprobando la integridad"
 
 #: ../localrepo/localrepo.py:249
 msgid "No errors found"
-msgstr "No s'han trobat errors"
+msgstr "No se encontraron errores"
 
 #: ../localrepo/localrepo.py:258
 msgid "Restoring database"
-msgstr "Restaurant la base de dades"
+msgstr "Restaurando la base de datos"
 
 #: ../localrepo/package.py:33
 msgid "Unresolved dependencies: {0}"
-msgstr ""
+msgstr "Dependencias no resueltas: {0}"
 
 #: ../localrepo/package.py:90
 msgid "Could not download file: {0}"
-msgstr "No s'ha pogut descarregar l'arxiu:{0}"
+msgstr "No se pudo descargar el archivo: {0}"
 
 #: ../localrepo/package.py:103
 msgid "Could not open tarball: {0}"
@@ -262,19 +262,19 @@ msgstr ""
 
 #: ../localrepo/package.py:107
 msgid "Tarball contains bad member: {0}"
-msgstr "Tarball conté un membre erroni:{0}"
+msgstr "El tarball contiene una entrada no válida: {0}"
 
 #: ../localrepo/package.py:139
 msgid "Could not find file: {0}"
-msgstr ""
+msgstr "No se pudo encontrar el archivo: {0}"
 
 #: ../localrepo/package.py:156
 msgid "Could not find any package"
-msgstr "No s'ha pogut trobat cap paquet"
+msgstr "No se encontró ningún paquete"
 
 #: ../localrepo/package.py:182
 msgid "File does not exist: {0}"
-msgstr "Arxiu inexistent:{0}"
+msgstr "El archivo no existe: {0}"
 
 #: ../localrepo/package.py:190
 msgid "Could not read package info: {0}"
@@ -282,31 +282,31 @@ msgstr ""
 
 #: ../localrepo/package.py:198
 msgid "An error occurred in tar"
-msgstr "A succeït un error a tar"
+msgstr "Ocurrió un error en tar"
 
 #: ../localrepo/package.py:225
 msgid "Invalid file name: {0}"
-msgstr "Nom d'arxiu invalid: {0}"
+msgstr "Nombre de archivo no válido: {0}"
 
 #: ../localrepo/package.py:283
 msgid "Destination is no directory: {0}"
-msgstr "El destí no és un directori:{0}"
+msgstr "El destino no es un directorio: {0}"
 
 #: ../localrepo/package.py:291
 msgid "File already exists: {0}"
-msgstr "L'arxiu ja existeix:{0}"
+msgstr "El archivo ya existe: {0}"
 
 #: ../localrepo/pacman.py:15
 msgid "An error occurred while running: {0}"
-msgstr ""
+msgstr "Ocurrió un error durante la ejecución: {0}"
 
 #: ../localrepo/pacman.py:82
 msgid "Could not find directory: {0}"
-msgstr ""
+msgstr "No se pudo encontrar el directorio: {0}"
 
 #: ../localrepo/pacman.py:101
 msgid "Ooh no! Somebody killed the repo elephant"
-msgstr "Ooh no! Algú ha matat la base de dades del elefant  "
+msgstr "¡Ooh no! Alguien mató al elefante del repositorio"
 
 #: ../localrepo/parser.py:48 ../localrepo/parser.py:55
 msgid "Could not parse PKGBUILD: {0}"
@@ -342,19 +342,19 @@ msgstr ""
 
 #: ../localrepo/repo.py:127
 msgid "Cache is outdated"
-msgstr ""
+msgstr "La caché está desactualizada"
 
 #: ../localrepo/repo.py:133
 msgid "Could not load cache"
-msgstr ""
+msgstr "No se pudo cargar la caché"
 
 #: ../localrepo/repo.py:141
 msgid "Could not update cache"
-msgstr ""
+msgstr "No se pudo actualizar la caché"
 
 #: ../localrepo/repo.py:153
 msgid "Package not found: {0}"
-msgstr "Paquet no trobat:{0}"
+msgstr "Paquete no encontrado: {0}"
 
 #: ../localrepo/repo.py:178
 msgid "Could not add packages to the db: {0}"
@@ -366,11 +366,11 @@ msgstr ""
 
 #: ../localrepo/repo.py:219
 msgid "Package has no valid checksum: {0}"
-msgstr "El paquet no presenta un suma d'integritat vàlida:{0}"
+msgstr "El paquete no contiene una suma de verificación válida: {0}"
 
 #: ../localrepo/repo.py:223
 msgid "Package is not listed in repo database: {0}"
-msgstr "El paquet no es troba llistat en la base de dades del repositori:{0}"
+msgstr "El paquete no está en la base de datos del repositorio: {0}"
 
 #: ../localrepo/utils.py:92
 msgid "[y|N]"
@@ -390,35 +390,35 @@ msgstr "Arquitectura"
 
 #: ../localrepo/utils.py:107
 msgid "Build Date"
-msgstr "Data de compilació"
+msgstr "Fecha de creación"
 
 #: ../localrepo/utils.py:108
 msgid "Package size"
-msgstr "Grandària del paquet"
+msgstr "Tamaño del paquete"
 
 #: ../localrepo/utils.py:109
 msgid "Description"
-msgstr "Descripció"
+msgstr "Descripción"
 
 #: ../localrepo/utils.py:110
 msgid "Filename"
-msgstr "Nom Arxiu"
+msgstr "Nombre de archivo"
 
 #: ../localrepo/utils.py:111
 msgid "Installed size"
-msgstr "tamany instal·lat"
+msgstr "Tamaño instalado"
 
 #: ../localrepo/utils.py:112
 msgid "Last update"
-msgstr "Darrera actualització"
+msgstr "Última actualización"
 
 #: ../localrepo/utils.py:113
 msgid "License"
-msgstr "Llicència"
+msgstr "Licencia"
 
 #: ../localrepo/utils.py:114
 msgid "Location"
-msgstr "Localització"
+msgstr "Ubicación"
 
 #: ../localrepo/utils.py:115
 msgid "MD5sum"
@@ -426,7 +426,7 @@ msgstr "MD5sum"
 
 #: ../localrepo/utils.py:116
 msgid "Name"
-msgstr "Nom"
+msgstr "Nombre"
 
 #: ../localrepo/utils.py:117
 msgid "Packager"
@@ -434,7 +434,7 @@ msgstr "Empaquetador"
 
 #: ../localrepo/utils.py:118
 msgid "Packages"
-msgstr "Paquets"
+msgstr "Paquetes"
 
 #: ../localrepo/utils.py:119
 msgid "SHA256sum"
@@ -442,101 +442,122 @@ msgstr "SHA256sum"
 
 #: ../localrepo/utils.py:120
 msgid "URL"
-msgstr ""
+msgstr "URL"
 
 #: ../localrepo/utils.py:121
 msgid "Version"
-msgstr "Versió"
+msgstr "Versión"
 
 # Additional messages from the argparse module
 # See: /usr/bin/python3.2/argparse.py
 msgid "usage: "
-msgstr ""
+msgstr "uso: "
 
 msgid "positional arguments"
-msgstr ""
+msgstr "argumentos posicionales"
 
 msgid "optional arguments"
-msgstr ""
+msgstr "argumentos opcionales"
 
 msgid "show this help message and exit"
-msgstr ""
+msgstr "muestra esta ayuda y sale"
 
 msgid "too few arguments"
-msgstr ""
+msgstr "faltan argumentos"
 
 msgid "unrecognized arguments: %s"
-msgstr ""
+msgstr "argumentos no reconocidos: %s"
 
 msgid "expected at least one argument"
-msgstr ""
+msgstr "se esperaba al menos un argumento"
 
 msgid "%(prog)s: error: %(message)s\n"
-msgstr ""
+msgstr "%(prog)s: error: %(message)s\n"
 
 #~ msgid "path to the repo"
-#~ msgstr "camí al repositori."
+#~ msgstr "ruta al repositorio"
 
 #~ msgid ""
 #~ "add a package to the repo. path can point to a package file, a pkgbuild "
 #~ "tarball or can be the uri of a downloadable pkgbuild tarball, e.g. in the "
 #~ "AUR"
 #~ msgstr ""
-#~ "Afegir un paquet al repositori.  El camí pot assenyalar a un arxiu "
-#~ "paquet, un pkgbuild tarball, o un enllaç a un pkgbuild tarball "
-#~ "descarregable, e.g. AUR.  "
+#~ "añade un paquete al repositorio. ruta puede apuntar a un fichero de "
+#~ "paquete, al tarball de un pkgbuild o puede ser la uri de un tarball de un "
+#~ "pkgbuild descargable, por ejemplo, desde el AUR"
 
 #~ msgid "Restore repo database"
-#~ msgstr "Restaurar la base de dades del repositori"
+#~ msgstr "restaura la base de datos del repositorio"
 
 #~ msgid ""
 #~ "upgrade a package by replacing it with a new package. see --add for a "
 #~ "description of the path argument"
 #~ msgstr ""
-#~ "actualitzar un paquet substituint-lo per un de nou, vegis -add per una "
-#~ "descripció de la l'argument ruta"
+#~ "actualiza un paquete reemplazándolo por uno nuevo. Consulte la "
+#~ "descripción del argumento ruta en --add"
+
+#~ msgid "Need following packages as dependencies: {0}"
+#~ msgstr "Se necesitan los siguientes paquetes como dependencias: {0}"
+
+#~ msgid "Install"
+#~ msgstr "Instalar"
+
+#~ msgid "Try without installing dependencies"
+#~ msgstr "Intentarlo sin instalar las dependencias"
+
+#~ msgid "Loading repo database: {0}"
+#~ msgstr "Cargando la base de datos del repositorio: {0}"
 
 #~ msgid "Package does not exist:"
-#~ msgstr "Paquet inexistent"
+#~ msgstr "El paquete no existe:"
 
 #~ msgid "Package information:"
-#~ msgstr "Informació del paquet:"
+#~ msgstr "Información del paquete:"
 
 #~ msgid "Making a new package"
-#~ msgstr "Fent un nou paquet"
+#~ msgstr "Construyendo un nuevo paquete"
 
 #~ msgid "Upgrading package:"
-#~ msgstr "Actualitzant paquet:"
+#~ msgstr "Actualizando el paquete:"
 
 #~ msgid "Adding package to the repo:"
-#~ msgstr "Afegint paquet al repositori:"
+#~ msgstr "Añadiendo el paquete al repositorio:"
 
 #~ msgid "Packages do not exist:"
-#~ msgstr "Paquets inexistents"
+#~ msgstr "No existen los paquetes:"
 
 #~ msgid "Removing packages:"
-#~ msgstr "Esborrant paquets"
+#~ msgstr "Quitando paquetes:"
 
 #~ msgid "Package is already in the repo:"
-#~ msgstr "El paquet ja està al repositori"
+#~ msgstr "El paquete ya está en el repositorio:"
 
 #~ msgid "Upgrade"
-#~ msgstr "Actualització"
+#~ msgstr "Actualizar"
 
 #~ msgid "File is no valid tarball: {0}"
-#~ msgstr "L'arxiu no és un tarball vàlid:{0} "
+#~ msgstr "El archivo no es un tarball válido: {0}"
 
 #~ msgid "Tarball contains multiple root directories"
-#~ msgstr "Tarball conté múltiples directoris root"
+#~ msgstr "El tarball contiene más de un directorio raíz"
+
+#~ msgid "Could not open file: {0}"
+#~ msgstr "No se pudo abrir el archivo: {0}"
+
+#~ msgid "Invalid PKGBUILD"
+#~ msgstr "PKGBUILD no válido"
 
 #~ msgid "Invalid .PKGINFO"
-#~ msgstr "Invàlid .PKGINFO"
+#~ msgstr ".PKGINFO no válido"
+
+#~ msgid "Invalid database entry"
+#~ msgstr "Entrada en la base de datos no válida"
 
 #~ msgid "Could not find repo database: {0}"
-#~ msgstr "No s'ha pogut trobar la base de dades del repositori:{0}"
+#~ msgstr "No se pudo encontrar la base de datos del repositorio: {0}"
 
 #~ msgid "File is no valid database: {0}"
-#~ msgstr "L'arxiu no és una base de dades vàlida:{0}"
+#~ msgstr "El archivo no es una base de datos válida: {0}"
 
 #~ msgid "Repo package is newer: {0} > {1}"
-#~ msgstr "El paquet en el repositori es més nou:{0}>{1}"
+#~ msgstr "El paquete del repositorio es más nuevo: {0} > {1}"

@@ -2,21 +2,32 @@
 # vim:ts=4:sw=4:noexpandtab
 
 from urllib.request import urlopen
-import json
+from json import loads as parse
+
+from localrepo.utils import LocalRepoError
+
+class AurError(LocalRepoError):
+	''' Handles Aur errors '''
+	pass
 
 class Aur:
 	''' A class that manages request to the AUR '''
 
 	#: Uri of the AUR
-	HOST = 'http://aur.archlinux.org'
+	HOST = 'https://aur.archlinux.org'
 
 	#: Uri of the AUR API
 	API = '/rpc.php'
 
+	#: Translations from AUR to localrepo
+	TRANS = {'Name': 'name',
+	         'Version': 'version',
+	         'URLPath': lambda p: ('uri', Aur.HOST + p)}
+
 	@staticmethod
 	def decode_info(info):
 		''' Turns an AUR info dict into a localrepo style package info  dict '''
-		return {'name': info['Name'], 'version': info['Version'], 'uri': Aur.HOST + info['URLPath']}
+		return dict(t(info[k]) if callable(t) else (t, info[k]) for k, t in Aur.TRANS.items())
 
 	@staticmethod
 	def request(request, data):
@@ -24,28 +35,28 @@ class Aur:
 		uri = '{0}{1}?type={2}'.format(Aur.HOST, Aur.API, request)
 
 		if type(data) is str:
-			uri += '&arg=' + data
+			uri += '&arg={0}'.format(data)
 		else:
-			uri += '&arg[]=' + '&arg[]='.join(data)
+			uri += ''.join(['&arg[]={0}'.format(d) for d in data])
 
 		try:
 			res = urlopen(uri)
 		except:
-			raise Exception(_('Could not reach the AUR'))
+			raise AurError(_('Could not reach the AUR'))
 
 		if res.status is not 200:
-			raise Exception(_('AUR responded with error: {0}').format(res.reason))
+			raise AurError(_('AUR responded with error: {0}').format(res.reason))
 
 		try:
-			infos = json.loads(res.read().decode('utf8'))
+			infos = parse(res.read().decode('utf8'))
 		except:
-			raise Exception(_('AUR responded with invalid data'))
+			raise AurError(_('AUR responded with invalid data'))
 
-		if 'type' not in infos or 'results' not in infos:
-			raise Exception(_('AUR responded with invalid data'))
+		if any(k not in infos for k in ('type', 'results')):
+			raise AurError(_('AUR responded with invalid data'))
 
 		if infos['type'] == 'error':
-			raise Exception(_('AUR responded with error: {0}').format(infos['results']))
+			raise AurError(_('AUR responded with error: {0}').format(infos['results']))
 
 		try:
 			if type(infos['results']) is dict:
@@ -53,7 +64,7 @@ class Aur:
 
 			return dict((i['Name'], Aur.decode_info(i)) for i in infos['results'])
 		except:
-			raise Exception(_('AUR responded with invalid data'))
+			raise AurError(_('AUR responded with invalid data'))
 
 	@staticmethod
 	def package(name):

@@ -1,23 +1,14 @@
 # parser.py
 # vim:ts=4:sw=4:noexpandtab
 
-from re import findall, match, search, split
+from re import compile as compile_pattern
 from subprocess import check_output
 
-class ParserError(Exception):
-	''' Exception handles parser errors '''
+from localrepo.utils import LocalRepoError
 
-	def __init__(self, msg):
-		self._msg = msg
-
-	@property
-	def message(self):
-		''' Returns the error messages '''
-		return self._msg
-
-	def __str__(self):
-		''' Return the error messages '''
-		return self._msg
+class ParserError(LocalRepoError):
+	''' Handles parser errors '''
+	pass
 
 
 class Parser:
@@ -28,53 +19,56 @@ class Parser:
 		self._data = data
 
 	def parse(self):
-		''' Must be implemented in the child classes.
-		Do not use this class directly.'''
+		''' Must be implemented in the child classes. Do not use this class directly.'''
 		raise NotImplementedError('Must be implemented in the child class')
 
 
 class PkgbuildParser(Parser):
 	''' The PKGBUILD parser '''
 
+	#: Pattern matches 'key=val'
+	PATTERN = compile_pattern('([a-z]+)=([^\n]*)\n')
+
 	#: Translations from PKGBUILD to local-repo
 	TRANS = {'pkgname': 'name',
 	         'pkgver': 'version',
-	         'depends': [],
-	         'makedepends': []}
+	         'depends': list,
+	         'makedepends': list}
+
+	#: Bash command that prints needed info 'key=val' style
+	ECHO = ' && '.join(('echo "{0}=${{{0}[@]}}"'.format(k) for k in TRANS))
 
 	def parse(self):
 		''' Parses a PKGBUILD - self._data must be the path to a PKGBUILD file'''
-		cmd = '. {0} '.format(self._data)
-		cmd += ' '.join(['&& echo "{0}=${{{0}[@]}}"'.format(k) for k in PkgbuildParser.TRANS])
+		cmd = 'source {0} && {1}'.format(self._data, PkgbuildParser.ECHO)
 
 		try:
-			data = check_output([cmd], shell=True).decode('utf8')
+			data = check_output(['/bin/bash', '-c', cmd]).decode('utf8')
 		except:
 			raise ParserError(_('Could not parse PKGBUILD: {0}').format(self._data))
 
-		data = dict(findall('([a-z]+)=([^\n]*)\n', data))
+		data = dict(PkgbuildParser.PATTERN.findall(data))
 		info = {}
 
-		for k in PkgbuildParser.TRANS:
-			try:
-				val = data[k]
-			except KeyError:
+		for k, t in PkgbuildParser.TRANS.items():
+			if k not in data:
 				raise ParserError(_('Could not parse PKGBUILD: {0}').format(self._data))
 
-			if type(PkgbuildParser.TRANS[k]) is list:
-				info[k] = val.split(' ') if val != '' else []
-				continue
-
-			if val == '':
+			if t is list:
+				info[k] = data[k].split(' ') if data[k] != '' else []
+			elif data[k] != '':
+				info[t] = data[k]
+			else:
 				raise ParserError(_('Missing PKGBUILD entry: {0}').format(k))
-
-			info[PkgbuildParser.TRANS[k]] = val
 
 		return info
 
 
 class PkginfoParser(Parser):
 	''' The PKGINFO parser '''
+
+	#: Pattern matches 'key = val'
+	PATTERN = compile_pattern('([a-z]+) = ([^\n]+)\n')
 
 	#: Translations from PKGINFO to local-repo
 	TRANS = {'pkgname': 'name',
@@ -89,16 +83,19 @@ class PkginfoParser(Parser):
 
 	def parse(self):
 		''' Parses a PKGINFO '''
-		info = dict(findall('([a-z]+) = ([^\n]+)\n', self._data))
+		info = dict(PkginfoParser.PATTERN.findall(self._data))
 
 		try:
 			return {t: info[k] for k, t in PkginfoParser.TRANS.items()}
-		except:
-			raise ParserError(_('Invalid .PKGINFO'))
+		except KeyError as e:
+			raise ParserError(_('Missing PKGINFO entry: {0}').format(e))
 
 
 class DescParser(Parser):
 	''' The database desc parser '''
+
+	#: Pattern matches '%key%\nval'
+	PATTERN = compile_pattern('%([A-Z256]+)%\n([^\n]+)\n')
 
 	#: List of mandatory fields
 	MANDATORY = ['filename', 'name', 'version', 'desc', 'csize', 'isize', 'md5sum',
@@ -106,9 +103,10 @@ class DescParser(Parser):
 
 	def parse(self):
 		''' Parses a desc file '''
-		info = {k.lower(): v for k, v in findall('%([A-Z256]+)%\n([^\n]+)\n', self._data)}
+		info = {k.lower(): v for k, v in DescParser.PATTERN.findall(self._data)}
+		missing = [field for field in DescParser.MANDATORY if field not in info]
 
-		if any(True for field in DescParser.MANDATORY if field not in info):
-			raise ParserError(_('Invalid database entry'))
+		if missing:
+			raise ParserError(_('Missing fields: {0}').format(', '.join(missing)))
 
 		return info
