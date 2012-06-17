@@ -83,6 +83,7 @@ class Pacman:
 		''' Unnstalls packages '''
 		for i, pkg in enumerate(pkgs):
 			pkgs[i] = Pacman.VERSION_SEP.split(pkg)[0]
+		pkgs = set(pkgs)
 
 		Pacman._run_as_root([Pacman.PACMAN, '-Rs'] + pkgs)
 
